@@ -17,8 +17,11 @@
         <el-button slot="append" icon="el-icon-search" @click="queryPaper"></el-button>
     </el-input>
       </el-col>
-      <el-col :span="4">
+      <el-col :span="2">
           <el-button type="primary" @click="addDialogVisible = true">添加试卷</el-button>
+      </el-col>
+      <el-col :span="2">
+          <el-button type="primary" @click="autoBuildPaperDialogVisible = true;getMajorList()">自动组卷</el-button>
       </el-col>
   </el-row>
   <!-- 试卷列表 -->
@@ -249,13 +252,62 @@
         <el-button type="primary" @click="assignmentPaper">确 定</el-button>
         </span>
     </el-dialog>
+
+    <!-- 自动组装试卷 -->
+    <el-dialog title="自动组卷"
+        :visible.sync="autoBuildPaperDialogVisible"
+        width="50%" @close="autoBuildPaperDialogVisible = false;buildPaperDialogClosed()"  >
+       <el-form :model="autoBuildPaperForm" :rules="autoBuildPaperFormRules"  ref="addPaperRef"
+        label-width="70px" status-icon >
+        <el-form-item label="名字" prop="name">
+        <el-input v-model="autoBuildPaperForm.name"></el-input>
+        </el-form-item>
+        <el-form-item label="是否公开" prop="isPublic">
+        <el-input v-model="autoBuildPaperForm.isPublic"></el-input>
+        </el-form-item>
+        <el-form-item label="题目数量" prop="optionNumber">
+        <el-input v-model="autoBuildPaperForm.optionNumber"></el-input>
+        </el-form-item>
+        <el-form-item label="题目分数" prop="optionScore">
+        <el-input v-model="autoBuildPaperForm.optionScore"></el-input>
+        </el-form-item>
+        </el-form>
+      <el-select v-model="autoBuildPaperForm.subject" placeholder="请选择要发布的专业">
+      <el-option
+        v-for="item in majorList"
+        :key="item.name"
+        :label="item.name"
+        :value="item.name">
+      </el-option>
+      </el-select>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="autoBuildPaperDialogVisible = false;buildPaperDialogClosed()">取 消</el-button>
+        <el-button type="primary" @click="autoBuildPaper()">确 定</el-button>
+        </span>
+    </el-dialog>
     </div>
 </template>
 <script>
 
 export default {
     name:"paperList",
+
     data(){
+      var checkFlag = (rule,value,cb)=>{
+            const regAnswer = /^(Y|N)$/;
+            if(regAnswer.test(value)){
+                return cb()
+            }
+            cb(new Error('请输入是否公开试卷 Y N'))
+        }
+        var checkNumber = (rule,value,cb)=>{
+            const regAnswer = /^\d{1,}$/;
+            if(regAnswer.test(value)){
+                return cb()
+            }
+            cb(new Error('请输入一个数字'))
+        }
+        
         return{
             //获取试卷列表
             queryInfo:{
@@ -283,9 +335,44 @@ export default {
             questionDialogVisible:false,
             addQuestionDialogVisible:false,
             publicPaperDialogVisible:false,
+            autoBuildPaperDialogVisible:false,
             addForm:{
                 name:'',
                 flag:''
+            },
+            autoBuildPaperForm:{
+              name:'',
+              subject:'',
+              isPublic:'',
+              optionNumber:'',
+              optionScore:'',
+              
+            },
+            autoBuildPaperFormRules:{
+              name:[
+                    {required:true,
+                    message:'试卷名称',
+                    trigger:'blur'}
+                ],
+                isPublic:[
+                    {required:true,
+                    message:'是否公开',
+                    trigger:'blur'},
+                     {validator:checkFlag}
+                    
+                ],
+                optionNumber:[
+                  {required:true,
+                    message:'题目数量',
+                    trigger:'blur'},
+                     {validator:checkNumber}
+                ],
+                optionScore:[
+                  {required:true,
+                    message:'题目分数',
+                    trigger:'blur'},
+                     {validator:checkNumber}
+                ]
             },
             questionForm:{
               paperId:'',
@@ -302,7 +389,7 @@ export default {
             paperId:'',
             paperName:'',
             paperIdInAddQuestion:'',
-    choiceQuestion:[]
+            choiceQuestion:[]
 
         }
     },
@@ -353,6 +440,11 @@ export default {
         /*  取消添加框事件*/
         addDialogClosed(){
             this.$refs.addFormRef.resetFields();
+            
+        },
+        buildPaperDialogClosed(){
+          this.$refs.addPaperRef.resetFields();
+          this.autoBuildPaperForm.subject = ''
         },
          /*点击确定 */
         addPaper(){
@@ -579,6 +671,32 @@ export default {
 
         
         },
+        autoBuildPaper(){
+          console.log(this.autoBuildPaperForm)
+          this.$refs.addPaperRef.validate(async valid=>{
+                if(!valid || this.autoBuildPaperForm.subject == '') return
+                this.axios.get(this.global.baseURL+"/paper/autoBuildPaper",{params:{
+               name:this.autoBuildPaperForm.name,
+               subject:this.autoBuildPaperForm.subject,
+               optionNumber:this.autoBuildPaperForm.optionNumber,
+               optionScore:this.autoBuildPaperForm.optionScore,
+               isPublic:this.autoBuildPaperForm.isPublic
+           }}).
+                then((response)=>{
+                    let res = response.data
+                    if(res.state == 0){
+                        
+                        return this.$message.error(res.object)
+                        
+                    }
+                    
+                    //this.getStudentList();
+                    this.buildPaperDialogClosed();
+                    this.autoBuildPaperDialogVisible = false;
+                    return this.$message.success(res.object)
+                })
+            } )
+        }
         
         
 
