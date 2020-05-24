@@ -26,17 +26,31 @@
       <el-table-column type="index"></el-table-column>
       <el-table-column label="试卷名字" prop="name">
       </el-table-column>
-      <el-table-column label="查看试卷" >
+      <el-table-column label="查看试卷" width="80px" >
             <template slot-scope="scope">
             <el-tooltip class="item" effect="dark" content="查看试卷" placement="top" :enterable="false">
             <el-button type="primary" icon="el-icon-tickets" size="mini" @click="getPaperDetail(scope)"></el-button>
             </el-tooltip>
         </template>
       </el-table-column>
+      <el-table-column label="添加试题" width="80px">
+            <template slot-scope="scope">
+            <el-tooltip class="item" effect="dark" content="添加试题" placement="top" :enterable="false">
+            <el-button type="primary" icon="el-icon-tickets" size="mini" @click="showAddQuestion(scope)"></el-button>
+            </el-tooltip>
+        </template>
+      </el-table-column>
+      <el-table-column label="发布试卷" width="80px" >
+            <template slot-scope="scope">
+            <el-tooltip class="item" effect="dark" content="发布试卷" placement="top" :enterable="false">
+            <el-button type="primary" icon="el-icon-tickets" size="mini" @click="publicPaper(scope)"></el-button>
+            </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="创建时间" prop="createTime"></el-table-column>
-      <el-table-column label="是否可编辑" prop="isEdit"></el-table-column>
-      <el-table-column label="是否公开" prop="isPublic"></el-table-column>
-      <el-table-column label="是否有效" prop="flag"></el-table-column>
+      <el-table-column label="是否可编辑" prop="isEdit" width="50px"></el-table-column>
+      <el-table-column label="是否公开" prop="isPublic" width="50px"></el-table-column>
+      <el-table-column label="是否有效" prop="flag" width="50px"></el-table-column>
       <el-table-column label="操作">
            <template slot-scope="scope">
                <el-tooltip class="item" effect="dark" content="更改公开状态" placement="top" :enterable="false">
@@ -177,7 +191,64 @@
         <el-button type="primary" @click="questionDialogVisible = false">确定</el-button>
         </span>
     </el-dialog>
-
+    <!-- 添加试题 -->
+    <el-dialog
+        title="试卷"
+        :visible.sync="addQuestionDialogVisible"
+        width="50%" @close="addQuestionDialogVisible = false"  >
+        序号:{{this.paperIdInAddQuestion}}
+        名称: {{this.paperName}}
+        <el-card>
+          <el-table :data="questionList" border stripe>
+             <el-table-column type="index"></el-table-column>
+            <el-table-column label="科目" prop="subject"></el-table-column>
+            <el-table-column label="题目" prop="title"></el-table-column>
+            <el-table-column label="选项" prop="content"></el-table-column>
+            <el-table-column label="设置分数">
+               
+               <input v-model="questionScore" placeholder="分数" style="width:50px" />
+               
+            </el-table-column>
+            <el-table-column label="操作">
+            <template slot-scope="scope">
+               <el-tooltip class="item" effect="dark" content="添加到试卷" placement="top" :enterable="false">
+                <el-button type="primary" icon="el-icon-edit" size="mini" @click="addQuestionToPaper(scope)"></el-button>
+                </el-tooltip>
+            </template>
+      </el-table-column>
+          </el-table>
+          <el-pagination
+          @size-change="questionSizeChange"
+          @current-change="questionCurrentChange"
+          :current-page="queryQuestion.start"
+          :page-sizes="[1, 2, 5, 10]"
+          :page-size="this.queryQuestion.size"
+          layout="total, sizes, pager, jumper"
+          :total="questionTotal">
+        </el-pagination>
+        </el-card>
+        <!-- 底部 -->
+        <span slot="footer" class="dialog-footer">
+        <el-button @click="addQuestionDialogVisible = false">取 消</el-button>
+        </span>
+    </el-dialog>
+    <!-- 发布试卷 -->
+    <el-dialog title="选择发布专业"
+        :visible.sync="publicPaperDialogVisible"
+        width="50%" @close="publicPaperDialogVisible = false">
+      <el-select v-model="majorId" placeholder="请选择要发布的专业">
+      <el-option
+        v-for="item in majorList"
+        :key="item.name"
+        :label="item.name"
+        :value="item.id">
+      </el-option>
+      </el-select>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="publicPaperDialogVisible  = false">取 消</el-button>
+        <el-button type="primary" @click="assignmentPaper">确 定</el-button>
+        </span>
+    </el-dialog>
     </div>
 </template>
 <script>
@@ -192,21 +263,45 @@ export default {
                 start:1,
                 size:5
             },
+            queryQuestion:{
+                query:'',
+                start:1,
+                size:5
+            },
             paperList:[],
+            questionList:[],
+            majorList:[],
+            majorName:'',
+            MPaperId:'',
+            majorId:'',
             total:0,
+            questionTotal:0,
+            questionScore:'',
             addDialogVisible:false,
             editDialogVisible:false,
             paperDialogVisible:false,
             questionDialogVisible:false,
+            addQuestionDialogVisible:false,
+            publicPaperDialogVisible:false,
             addForm:{
                 name:'',
                 flag:''
             },
+            questionForm:{
+              paperId:'',
+              questionId:'',
+              score:'',
+              type:'1',
+              priority:'1'
+            },
             isPublic:'',
             isFlag:'',
             addFormRules:{},
+            addQuestionFormRules:{},
             paperDetail:[],
             paperId:'',
+            paperName:'',
+            paperIdInAddQuestion:'',
     choiceQuestion:[]
 
         }
@@ -215,6 +310,12 @@ export default {
         this.getPaperList();
     },
     methods:{
+        getMajorList(){
+            this.axios.get(this.global.baseURL+"/question/getMajor").
+            then((response)=>{
+              let res = response.data;
+              this.majorList = res.object;})
+        },
         getPaperList(){
             this.axios.get(this.global.baseURL+"/paper/queryPaper",
        {params:{
@@ -253,7 +354,7 @@ export default {
         addDialogClosed(){
             this.$refs.addFormRef.resetFields();
         },
-        /* 点击确定 */
+         /*点击确定 */
         addPaper(){
             this.$refs.addFormRef.validate(async valid=>{
                 if(!valid) return
@@ -301,6 +402,26 @@ export default {
                     }
                     this.getPaperList();
                     return this.$message.success('更改有效状态成功')
+           })
+        },
+        publicPaper(scope){
+          this.MPaperId = scope.row.id;
+          this.publicPaperDialogVisible = true;
+          this.getMajorList();
+        },
+        assignmentPaper(){
+          console.log(this.majorId)
+          this.axios.get(this.global.baseURL+"/paper/assignmentPaper",{params:{
+               pid:this.MPaperId,
+               mid:this.majorId
+           }}).then((response)=>{
+               let res = response.data
+                    if(res.state == 0){
+                        return this.$message.error(res.object)
+                    }
+                    this.majorId = '';
+                    this.publicPaperDialogVisible = false;
+                    return this.$message.success(res.object)
            })
         },
         getPaperDetail(scope){
@@ -399,7 +520,66 @@ export default {
             message: '已取消清空'
           });          
         });
-        }
+        },
+        showAddQuestion(scope){
+          this.addQuestionDialogVisible = true;
+          this.queryQuestions();
+          this.paperName = scope.row.name;
+          this.paperIdInAddQuestion = scope.row.id;
+        },
+        queryQuestions(){
+          this.axios.get(this.global.baseURL+"/question/queryQuestions",
+          {params:{
+               start:this.queryQuestion.start,
+               size:this.queryQuestion.size,
+               query:this.queryQuestion.query
+           }}).then((response)=>{
+              let res = response.data;
+              if(res.state == 0){
+                  return this.$message.error('res.object')
+              }
+              console.log(res)
+              this.questionList = res.object;
+              this.questionTotal = res.total;
+              console.log(this.total)
+          })
+        },
+         questionSizeChange(newSize){
+            this.queryQuestion.size = newSize;
+            this.queryQuestions();
+        },
+        questionCurrentChange(newPage){
+            this.queryQuestion.start = newPage;
+             this.queryQuestions();
+
+        },
+        addQuestionToPaper(scope){
+          if(this.questionScore==''){
+            this.$message.error("请设置一个分数");
+            return;
+          }
+          this.questionForm.paperId = this.paperIdInAddQuestion;
+          this.questionForm.questionId = scope.row.id;
+          console.log(scope.row)
+          this.questionForm.score = this.questionScore;
+           this.axios.post(this.global.baseURL+"/paper/compositionPaper",this.questionForm
+          ).then((response)=>{
+              let res = response.data;
+              if(res.state == 0){
+                  return this.$message.error(res.object)
+              }else{
+                 this.questionScore = '';
+                return this.$message.success(res.object)
+              }
+              
+             
+              
+          })
+
+
+        
+        },
+        
         
 
     }

@@ -231,7 +231,7 @@ export default {
                     }
                     this.addDialogVisible = false;
                     this.queryInfo.start = 1;
-                    this.getStudentList();
+                    //this.getStudentList();
                     return this.$message.success('添加试题成功')
                 })
             } )
